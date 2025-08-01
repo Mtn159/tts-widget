@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Advanced TTS Widget</title>
   <style>
+    /* Base & container */
     body {
       font-family: 'Segoe UI', sans-serif;
       background: #f5f5f5;
@@ -11,10 +12,41 @@
       max-width: 600px;
       margin: 2rem auto;
       padding: 1rem;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
       border-radius: 8px;
+      transition: background 0.3s, color 0.3s;
     }
-    h2 { text-align: center; margin-bottom: 1rem; }
+
+    /* Dark theme */
+    body.dark-theme {
+      background: #1e1e1e;
+      color: #f5f5f5;
+    }
+    body.dark-theme textarea {
+      background: #333;
+      color: #f5f5f5;
+      border-color: #555;
+    }
+    body.dark-theme button {
+      background: #4e4e4e;
+      color: #f5f5f5;
+    }
+
+    /* Theme toggle */
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      font-size: 0.9rem;
+    }
+    .theme-toggle input {
+      margin-right: 0.3rem;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
     textarea {
       width: 100%;
       height: 120px;
@@ -23,10 +55,13 @@
       border-radius: 4px;
       resize: vertical;
       margin-bottom: 1rem;
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
     }
+
     #controls {
       display: flex;
-      gap: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
       margin-bottom: 1rem;
     }
     #controls label {
@@ -35,16 +70,21 @@
       display: flex;
       flex-direction: column;
     }
+    select, input[type="range"] {
+      margin-top: 0.3rem;
+      padding: 0.3rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      transition: background 0.3s, border-color 0.3s;
+    }
     input[type="range"] {
       width: 100%;
-      margin-top: 0.4rem;
     }
     #buttons {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       justify-content: center;
-      margin-bottom: 1rem;
     }
     button {
       padding: 0.5rem 1rem;
@@ -53,31 +93,40 @@
       color: white;
       border-radius: 4px;
       cursor: pointer;
+      transition: transform 0.1s ease, background 0.3s;
     }
-    button:hover { background: #005a9e; }
+    button:hover {
+      background: #005a9e;
+    }
+    button:active {
+      transform: scale(0.95);
+    }
     #download-btn {
       background: #28a745;
     }
     #download-btn:hover {
       background: #1c7430;
     }
-    #api-key {
-      width: 100%;
-      padding: 0.4rem;
-      font-size: 0.9rem;
-      margin-bottom: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
   </style>
 </head>
 <body>
 
+  <div class="theme-toggle">
+    <label>
+      <input type="checkbox" id="theme-toggle-checkbox">
+      Dark Mode
+    </label>
+  </div>
+
   <h2>Advanced Text-to-Speech</h2>
-  
-  <textarea id="text-input" placeholder="Enter text here…"></textarea>
+
+  <textarea id="text-input" placeholder="Type your text here…"></textarea>
 
   <div id="controls">
+    <label>
+      Language
+      <select id="language-select"></select>
+    </label>
     <label>
       Voice
       <select id="voice-select"></select>
@@ -105,56 +154,125 @@
   <script>
     const synth = window.speechSynthesis;
     const textInput = document.getElementById('text-input');
+    const languageSelect = document.getElementById('language-select');
     const voiceSelect = document.getElementById('voice-select');
     const rate = document.getElementById('rate');
     const pitch = document.getElementById('pitch');
     const rateVal = document.getElementById('rate-val');
     const pitchVal = document.getElementById('pitch-val');
+    const themeCheckbox = document.getElementById('theme-toggle-checkbox');
     const apiKeyInput = document.getElementById('api-key');
     let voices = [];
 
+    // Load user settings from localStorage
+    function loadSettings() {
+      if (localStorage.getItem('tts-theme') === 'dark') {
+        document.body.classList.add('dark-theme');
+        themeCheckbox.checked = true;
+      }
+      const storedLang = localStorage.getItem('tts-language');
+      const storedRate = localStorage.getItem('tts-rate');
+      const storedPitch = localStorage.getItem('tts-pitch');
+      const storedVoice = localStorage.getItem('tts-voice');
+
+      if (storedRate) rate.value = storedRate;
+      if (storedPitch) pitch.value = storedPitch;
+      rateVal.textContent = rate.value;
+      pitchVal.textContent = pitch.value;
+
+      if (storedLang) languageSelect.value = storedLang;
+      if (storedVoice) voiceSelect.value = storedVoice;
+    }
+
+    // Save a single setting
+    function saveSetting(key, value) {
+      localStorage.setItem(key, value);
+    }
+
+    // Populate languages and voices
     function populateVoices() {
       voices = synth.getVoices();
+      // languages
+      const langs = [...new Set(voices.map(v => v.lang))];
+      languageSelect.innerHTML = langs
+        .map(l => `<option value="${l}">${l}</option>`)
+        .join('');
+      // restore language
+      const storedLang = localStorage.getItem('tts-language') || langs[0];
+      languageSelect.value = storedLang;
+      updateVoiceList();
+    }
+
+    // Filter voices for selected language
+    function updateVoiceList() {
+      const lang = languageSelect.value;
       voiceSelect.innerHTML = '';
-      voices.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v.lang;
-        opt.textContent = `${v.name} (${v.lang})`;
-        voiceSelect.appendChild(opt);
-      });
+      voices
+        .filter(v => v.lang === lang)
+        .forEach(v => {
+          voiceSelect.insertAdjacentHTML(
+            'beforeend',
+            `<option value="${v.name}">${v.name}</option>`
+          );
+        });
+      // restore voice
+      const storedVoice = localStorage.getItem('tts-voice');
+      if (storedVoice && [...voiceSelect.options].some(o => o.value === storedVoice)) {
+        voiceSelect.value = storedVoice;
+      }
     }
 
     synth.onvoiceschanged = populateVoices;
 
-    rate.oninput = () => rateVal.textContent = rate.value;
-    pitch.oninput = () => pitchVal.textContent = pitch.value;
+    // Initialize settings
+    loadSettings();
+
+    // Event listeners
+    languageSelect.onchange = () => {
+      saveSetting('tts-language', languageSelect.value);
+      updateVoiceList();
+    };
+    voiceSelect.onchange = () => saveSetting('tts-voice', voiceSelect.value);
+    rate.oninput = () => {
+      rateVal.textContent = rate.value;
+      saveSetting('tts-rate', rate.value);
+    };
+    pitch.oninput = () => {
+      pitchVal.textContent = pitch.value;
+      saveSetting('tts-pitch', pitch.value);
+    };
+    themeCheckbox.onchange = () => {
+      if (themeCheckbox.checked) {
+        document.body.classList.add('dark-theme');
+        saveSetting('tts-theme', 'dark');
+      } else {
+        document.body.classList.remove('dark-theme');
+        saveSetting('tts-theme', 'light');
+      }
+    };
 
     document.getElementById('speak-btn').onclick = () => {
       if (synth.speaking) return alert('Already speaking');
       const utter = new SpeechSynthesisUtterance(textInput.value);
-      utter.voice = voices.find(v => v.lang === voiceSelect.value);
+      utter.voice = voices.find(v => v.name === voiceSelect.value);
       utter.rate = rate.value;
       utter.pitch = pitch.value;
       synth.speak(utter);
     };
-
     document.getElementById('pause-btn').onclick = () => {
       if (synth.speaking) synth.pause();
     };
-
     document.getElementById('resume-btn').onclick = () => {
       if (synth.paused) synth.resume();
     };
-
     document.getElementById('cancel-btn').onclick = () => {
       if (synth.speaking) synth.cancel();
     };
-
     document.getElementById('download-btn').onclick = () => {
       const key = apiKeyInput.value.trim();
-      if (!key) return alert('Please enter your VoiceRSS API key above');
+      if (!key) return alert('Enter your VoiceRSS API key');
       const text = encodeURIComponent(textInput.value);
-      const lang = voiceSelect.value;
+      const lang = languageSelect.value;
       const r = Math.round((rate.value - 1) * 10);
       const url = `https://api.voicerss.org/?key=${key}&hl=${lang}&r=${r}&c=MP3&f=44khz_16bit_stereo&src=${text}`;
       const link = document.createElement('a');
@@ -163,6 +281,5 @@
       link.click();
     };
   </script>
-
 </body>
 </html>
