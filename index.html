@@ -87,6 +87,13 @@
     #download-btn:hover {
       background: #1c7430;
     }
+    #loading-indicator {
+      text-align: center;
+      display: none;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -124,6 +131,8 @@
     <button id="download-btn">Download Audio</button>
   </div>
 
+  <div id="loading-indicator">Loading audio, please wait...</div>
+
   <script>
     const KISHAN_VOICE_ID = 'KSsyodh37PbfWy29kPtx';
     const synth = window.speechSynthesis;
@@ -138,6 +147,7 @@
     const themeCheckbox = document.getElementById('theme-toggle-checkbox');
     const apiKeyInput = document.getElementById('api-key');
     const providerSelect = document.getElementById('provider-select');
+    const loadingIndicator = document.getElementById('loading-indicator');
 
     let voices = [];
 
@@ -152,7 +162,12 @@
     function updateVoiceList() {
       const selectedLang = languageSelect.value;
       voiceSelect.innerHTML = '';
-      voices.filter(v => v.lang === selectedLang).forEach(v => {
+      const filtered = voices.filter(v => v.lang === selectedLang);
+      if (filtered.length === 0) {
+        voiceSelect.insertAdjacentHTML('beforeend', `<option disabled>No voices available for this language</option>`);
+        return;
+      }
+      filtered.forEach(v => {
         voiceSelect.insertAdjacentHTML('beforeend', `<option value="${v.name}">${v.name}</option>`);
       });
       const storedVoice = localStorage.getItem('tts-voice');
@@ -176,7 +191,6 @@
       localStorage.setItem(key, value);
     }
 
-    // Event listeners
     languageSelect.onchange = () => {
       saveSetting('tts-language', languageSelect.value);
       updateVoiceList();
@@ -195,9 +209,9 @@
       saveSetting('tts-theme', themeCheckbox.checked ? 'dark' : 'light');
     };
 
-    // Buttons
     document.getElementById('speak-btn').onclick = () => {
       if (synth.speaking) return alert('Already speaking');
+      if (!textInput.value.trim()) return alert('Please enter text to speak.');
       const utter = new SpeechSynthesisUtterance(textInput.value);
       utter.voice = voices.find(v => v.name === voiceSelect.value);
       utter.rate = rate.value;
@@ -220,11 +234,14 @@
         return;
       }
 
+      loadingIndicator.style.display = 'block';
+
       if (provider === 'voicerss') {
         const url = `https://api.voicerss.org/?key=${key}&hl=${languageSelect.value}`
                   + `&r=${Math.round((rate.value - 1) * 10)}&c=MP3&f=44khz_16bit_stereo`
                   + `&src=${encodeURIComponent(text)}`;
         downloadFromUrl(url, 'voicerss-tts.mp3');
+        loadingIndicator.style.display = 'none';
         return;
       }
 
@@ -244,16 +261,18 @@
           downloadFromUrl(url, 'kishan-tts.mp3');
         } catch (err) {
           alert('ElevenLabs Error: ' + err.message);
+        } finally {
+          loadingIndicator.style.display = 'none';
         }
         return;
       }
 
-      // Fallback: speak instead of download
       const utter = new SpeechSynthesisUtterance(text);
       utter.voice = voices.find(v => v.name === voiceSelect.value);
       utter.rate = rate.value;
       utter.pitch = pitch.value;
       synth.speak(utter);
+      loadingIndicator.style.display = 'none';
     };
 
     function downloadFromUrl(url, filename) {
@@ -263,10 +282,8 @@
       a.click();
     }
 
-    // Init
     loadSettings();
     populateVoices();
-    // Some browsers don't call onvoiceschanged
     if (!synth.onvoiceschanged) setTimeout(populateVoices, 500);
     else synth.onvoiceschanged = populateVoices;
   </script>
