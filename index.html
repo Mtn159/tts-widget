@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Text-to-Speech Urdu & English</title>
+  <meta charset="UTF-8">
+  <title>Simple TTS: English, Urdu & Hindi</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -13,6 +13,7 @@
       padding: 2rem;
       border-radius: 8px;
       transition: background 0.3s, color 0.3s;
+      position: relative;
     }
     body.dark {
       background: #111;
@@ -25,12 +26,13 @@
     textarea {
       width: 100%;
       height: 120px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 1rem;
+      padding: 0.5rem;
       margin-bottom: 1rem;
-      font-family: 'Noto Nastaliq Urdu', 'Segoe UI', sans-serif;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: sans-serif;
+      font-size: 1rem;
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
     }
     .row {
       display: flex;
@@ -41,12 +43,15 @@
     .row label {
       flex: 1;
       font-size: 0.9rem;
+      display: flex;
+      flex-direction: column;
     }
-    select, input[type="range"], input[type="text"] {
-      width: 100%;
+    select, input[type="range"] {
+      margin-top: 0.3rem;
       padding: 0.4rem;
-      border-radius: 5px;
+      border-radius: 4px;
       border: 1px solid #ccc;
+      transition: background 0.3s, border-color 0.3s;
     }
     .buttons {
       display: flex;
@@ -57,178 +62,119 @@
     button {
       padding: 0.6rem 1.2rem;
       border: none;
-      border-radius: 5px;
-      background-color: #0078d4;
+      border-radius: 4px;
+      background: #0078d4;
       color: white;
       cursor: pointer;
+      transition: background 0.3s, transform 0.1s;
     }
-    button:hover {
-      background-color: #005fa3;
-    }
-    #download-btn {
-      background-color: #28a745;
-    }
-    #download-btn:hover {
-      background-color: #1c7430;
-    }
+    button:hover { background: #005fa3; }
+    button:active { transform: scale(0.95); }
     .theme-toggle {
       position: absolute;
       top: 1rem;
       right: 1rem;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
+
   <label class="theme-toggle">
-    <input type="checkbox" id="darkToggle" /> Dark Mode
+    <input type="checkbox" id="darkToggle"> Dark Mode
   </label>
 
-  <h2>Text-to-Speech (English & Urdu)</h2>
+  <h2>Text-to-Speech</h2>
 
-  <textarea id="text" placeholder="Type or paste text here..."></textarea>
+  <textarea id="textInput" placeholder="Type your text here…"></textarea>
 
   <div class="row">
-    <label>Language
+    <label>
+      Language
       <select id="language">
         <option value="en-US">English (US)</option>
-        <option value="ur-PK">پاکستانی اُردو (ur-PK)</option>
-        <option value="ur-IN">بھارتی اُردو (ur-IN)</option>
+        <option value="ur-PK">Urdu</option>
+        <option value="hi-IN">Hindi</option>
       </select>
-    </label>
-
-    <label>Voice
-      <select id="voice"></select>
     </label>
   </div>
 
   <div class="row">
-    <label>Rate (<span id="rate-val">1</span>)
-      <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1" />
+    <label>
+      Rate (<span id="rateVal">1</span>)
+      <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
     </label>
-
-    <label>Pitch (<span id="pitch-val">1</span>)
-      <input type="range" id="pitch" min="0" max="2" step="0.1" value="1" />
-    </label>
-  </div>
-
-  <div class="row">
-    <label>Provider
-      <select id="provider">
-        <option value="webspeech">Web Speech API (Local)</option>
-        <option value="voicerss">VoiceRSS</option>
-        <option value="elevenlabs">ElevenLabs (Kishan)</option>
-      </select>
-    </label>
-
-    <label>API Key
-      <input type="text" id="apiKey" placeholder="VoiceRSS or ElevenLabs key" />
+    <label>
+      Pitch (<span id="pitchVal">1</span>)
+      <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
     </label>
   </div>
 
   <div class="buttons">
-    <button id="speak">Speak</button>
-    <button id="download-btn">Download Audio</button>
+    <button id="speakBtn">Speak</button>
+    <button id="pauseBtn">Pause</button>
+    <button id="resumeBtn">Resume</button>
+    <button id="cancelBtn">Cancel</button>
   </div>
 
   <script>
-    const synth = window.speechSynthesis;
-    const textEl = document.getElementById("text");
-    const languageEl = document.getElementById("language");
-    const voiceEl = document.getElementById("voice");
-    const rateEl = document.getElementById("rate");
-    const pitchEl = document.getElementById("pitch");
-    const rateVal = document.getElementById("rate-val");
-    const pitchVal = document.getElementById("pitch-val");
-    const providerEl = document.getElementById("provider");
-    const apiKeyEl = document.getElementById("apiKey");
-    const darkToggle = document.getElementById("darkToggle");
-
-    const KISHAN_VOICE_ID = "KSsyodh37PbfWy29kPtx";
+    const synth         = window.speechSynthesis;
+    const textInput     = document.getElementById('textInput');
+    const languageEl    = document.getElementById('language');
+    const rateEl        = document.getElementById('rate');
+    const pitchEl       = document.getElementById('pitch');
+    const rateVal       = document.getElementById('rateVal');
+    const pitchVal      = document.getElementById('pitchVal');
+    const darkToggle    = document.getElementById('darkToggle');
+    const speakBtn      = document.getElementById('speakBtn');
+    const pauseBtn      = document.getElementById('pauseBtn');
+    const resumeBtn     = document.getElementById('resumeBtn');
+    const cancelBtn     = document.getElementById('cancelBtn');
 
     let voices = [];
 
-    function loadVoices() {
+    // Populate available voices
+    function populateVoices() {
       voices = synth.getVoices();
-      updateVoiceList();
     }
 
-    function updateVoiceList() {
-      const selectedLang = languageEl.value;
-      const available = voices.filter(v => v.lang === selectedLang);
-      voiceEl.innerHTML = available.map(v => `<option value="${v.name}">${v.name}</option>`).join("");
-      if (available.length) voiceEl.value = available[0].name;
-    }
+    // Speak with selected language, rate & pitch
+    speakBtn.onclick = () => {
+      const text = textInput.value.trim();
+      if (!text) return alert('Please enter some text.');
+      const utter = new SpeechSynthesisUtterance(text);
 
-    languageEl.onchange = updateVoiceList;
-    rateEl.oninput = () => rateVal.textContent = rateEl.value;
-    pitchEl.oninput = () => pitchVal.textContent = pitchEl.value;
+      // set language & voice
+      utter.lang  = languageEl.value;
+      const voice = voices.find(v => v.lang === languageEl.value);
+      if (voice) utter.voice = voice;
 
-    document.getElementById("speak").onclick = () => {
-      const utter = new SpeechSynthesisUtterance(textEl.value);
-      const selected = voices.find(v => v.name === voiceEl.value);
-      utter.voice = selected;
-      utter.rate = parseFloat(rateEl.value);
+      // apply rate/pitch
+      utter.rate  = parseFloat(rateEl.value);
       utter.pitch = parseFloat(pitchEl.value);
+
       synth.speak(utter);
     };
 
-    document.getElementById("download-btn").onclick = async () => {
-      const text = textEl.value.trim();
-      const lang = languageEl.value;
-      const key = apiKeyEl.value.trim();
-      const provider = providerEl.value;
+    pauseBtn.onclick  = () => synth.pause();
+    resumeBtn.onclick = () => synth.resume();
+    cancelBtn.onclick = () => synth.cancel();
 
-      if (!text) return alert("Enter text to download.");
+    // Update sliders
+    rateEl.oninput  = () => rateVal.textContent  = rateEl.value;
+    pitchEl.oninput = () => pitchVal.textContent = pitchEl.value;
 
-      if ((provider === "voicerss" || provider === "elevenlabs") && !key) {
-        alert("API key required for selected provider.");
-        return;
-      }
-
-      if (provider === "voicerss") {
-        const url = `https://api.voicerss.org/?key=${key}&hl=${lang}&c=MP3&f=44khz_16bit_stereo&src=${encodeURIComponent(text)}`;
-        download(url, "voicerss-audio.mp3");
-      } else if (provider === "elevenlabs") {
-        try {
-          const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${KISHAN_VOICE_ID}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "xi-api-key": key
-            },
-            body: JSON.stringify({ text })
-          });
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          download(url, "elevenlabs-audio.mp3");
-        } catch (e) {
-          alert("ElevenLabs Error: " + e.message);
-        }
-      } else {
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.voice = voices.find(v => v.name === voiceEl.value);
-        utter.rate = parseFloat(rateEl.value);
-        utter.pitch = parseFloat(pitchEl.value);
-        synth.speak(utter);
-      }
-    };
-
-    function download(url, filename) {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    // Dark mode
+    // Dark mode toggle
     darkToggle.onchange = () => {
-      document.body.classList.toggle("dark", darkToggle.checked);
+      document.body.classList.toggle('dark', darkToggle.checked);
     };
 
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-    if (!speechSynthesis.onvoiceschanged) setTimeout(loadVoices, 500);
+    // Initialize
+    if (synth.onvoiceschanged !== undefined) {
+      synth.onvoiceschanged = populateVoices;
+    }
+    populateVoices();
   </script>
+
 </body>
 </html>
