@@ -1,291 +1,147 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Advanced TTS Widget</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f5f5f5;
-      color: #333;
-      max-width: 600px;
-      margin: 2rem auto;
-      padding: 1rem;
-      border-radius: 8px;
-      transition: background 0.3s, color 0.3s;
-    }
-    body.dark-theme {
-      background: #1e1e1e;
-      color: #f5f5f5;
-    }
-    body.dark-theme textarea {
-      background: #333;
-      color: #f5f5f5;
-      border-color: #555;
-    }
-    body.dark-theme button {
-      background: #4e4e4e;
-      color: #f5f5f5;
-    }
-    .theme-toggle {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      font-size: 0.9rem;
-    }
-    .theme-toggle input { margin-right: 0.3rem; }
-    h2 {
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-    textarea {
-      width: 100%;
-      height: 120px;
-      padding: 0.5rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      resize: vertical;
-      margin-bottom: 1rem;
-    }
-    #controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    #controls label {
-      flex: 1;
-      font-size: 0.9rem;
-      display: flex;
-      flex-direction: column;
-    }
-    select, input[type="range"] {
-      margin-top: 0.3rem;
-      padding: 0.3rem;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
-    #buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      justify-content: center;
-    }
-    button {
-      padding: 0.5rem 1rem;
-      border: none;
-      background: #0078d4;
-      color: white;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    button:hover { background: #005a9e; }
-    button:active { transform: scale(0.95); }
-    #download-btn {
-      background: #28a745;
-    }
-    #download-btn:hover {
-      background: #1c7430;
-    }
-    #loading-indicator {
-      text-align: center;
-      display: none;
-      font-size: 0.9rem;
-      margin-top: 0.5rem;
-      color: #555;
-    }
-  </style>
-</head>
-<body>
-  <div class="theme-toggle">
-    <label>
-      <input type="checkbox" id="theme-toggle-checkbox" />
-      Dark Mode
-    </label>
-  </div>
+<script>
+  const KISHAN_VOICE_ID = 'KSsyodh37PbfWy29kPtx';
+  const synth = window.speechSynthesis;
 
-  <h2>Advanced Text-to-Speech</h2>
-  <textarea id="text-input" placeholder="Type your text here…"></textarea>
+  const textInput = document.getElementById('text-input');
+  const languageSelect = document.getElementById('language-select');
+  const voiceSelect = document.getElementById('voice-select');
+  const rate = document.getElementById('rate');
+  const pitch = document.getElementById('pitch');
+  const rateVal = document.getElementById('rate-val');
+  const pitchVal = document.getElementById('pitch-val');
+  const themeCheckbox = document.getElementById('theme-toggle-checkbox');
+  const apiKeyInput = document.getElementById('api-key');
+  const providerSelect = document.getElementById('provider-select');
 
-  <div id="controls">
-    <label>Language <select id="language-select"></select></label>
-    <label>Voice <select id="voice-select"></select></label>
-    <label>Rate (<span id="rate-val">1</span>)<input type="range" id="rate" min="0.5" max="2" step="0.1" value="1" /></label>
-    <label>Pitch (<span id="pitch-val">1</span>)<input type="range" id="pitch" min="0" max="2" step="0.1" value="1" /></label>
-    <label>Provider
-      <select id="provider-select">
-        <option value="webspeech">Web Speech API</option>
-        <option value="voicerss">VoiceRSS</option>
-        <option value="elevenlabs">ElevenLabs (Kishan)</option>
-      </select>
-    </label>
-  </div>
+  let voices = [];
 
-  <input id="api-key" type="text" placeholder="Paste your VoiceRSS or ElevenLabs API key here" />
+  function populateVoices() {
+    voices = synth.getVoices();
+    const langs = [...new Set(voices.map(v => v.lang))];
 
-  <div id="buttons">
-    <button id="speak-btn">Speak</button>
-    <button id="pause-btn">Pause</button>
-    <button id="resume-btn">Resume</button>
-    <button id="cancel-btn">Cancel</button>
-    <button id="download-btn">Download Audio</button>
-  </div>
+    // Ensure ur-PK and ur-IN are included manually if missing
+    if (!langs.includes('ur-PK')) langs.push('ur-PK');
+    if (!langs.includes('ur-IN')) langs.push('ur-IN');
 
-  <div id="loading-indicator">Loading audio, please wait...</div>
+    languageSelect.innerHTML = langs.map(l => `<option value="${l}">${l}</option>`).join('');
+    languageSelect.value = localStorage.getItem('tts-language') || 'en-US';
+    updateVoiceList();
+  }
 
-  <script>
-    const KISHAN_VOICE_ID = 'KSsyodh37PbfWy29kPtx';
-    const synth = window.speechSynthesis;
+  function updateVoiceList() {
+    const selectedLang = languageSelect.value;
+    const filtered = voices.filter(v => v.lang === selectedLang);
+    voiceSelect.innerHTML = filtered.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+    if (filtered.length > 0) voiceSelect.value = filtered[0].name;
+  }
 
-    const textInput = document.getElementById('text-input');
-    const languageSelect = document.getElementById('language-select');
-    const voiceSelect = document.getElementById('voice-select');
-    const rate = document.getElementById('rate');
-    const pitch = document.getElementById('pitch');
-    const rateVal = document.getElementById('rate-val');
-    const pitchVal = document.getElementById('pitch-val');
-    const themeCheckbox = document.getElementById('theme-toggle-checkbox');
-    const apiKeyInput = document.getElementById('api-key');
-    const providerSelect = document.getElementById('provider-select');
-    const loadingIndicator = document.getElementById('loading-indicator');
+  function saveSetting(key, value) {
+    localStorage.setItem(key, value);
+  }
 
-    let voices = [];
+  function loadSettings() {
+    if (localStorage.getItem('tts-theme') === 'dark') {
+      document.body.classList.add('dark-theme');
+      themeCheckbox.checked = true;
+    }
+    rate.value = localStorage.getItem('tts-rate') || 1;
+    pitch.value = localStorage.getItem('tts-pitch') || 1;
+    rateVal.textContent = rate.value;
+    pitchVal.textContent = pitch.value;
+  }
 
-    function populateVoices() {
-      voices = synth.getVoices();
-      const langs = [...new Set(voices.map(v => v.lang))];
-      languageSelect.innerHTML = langs.map(l => `<option value="${l}">${l}</option>`).join('');
-      languageSelect.value = localStorage.getItem('tts-language') || langs[0];
-      updateVoiceList();
+  // Event handlers
+  languageSelect.onchange = () => {
+    saveSetting('tts-language', languageSelect.value);
+    updateVoiceList();
+  };
+  voiceSelect.onchange = () => saveSetting('tts-voice', voiceSelect.value);
+  rate.oninput = () => {
+    rateVal.textContent = rate.value;
+    saveSetting('tts-rate', rate.value);
+  };
+  pitch.oninput = () => {
+    pitchVal.textContent = pitch.value;
+    saveSetting('tts-pitch', pitch.value);
+  };
+  themeCheckbox.onchange = () => {
+    document.body.classList.toggle('dark-theme');
+    saveSetting('tts-theme', themeCheckbox.checked ? 'dark' : 'light');
+  };
+
+  // Speak
+  document.getElementById('speak-btn').onclick = () => {
+    if (synth.speaking) return alert('Already speaking');
+    const utter = new SpeechSynthesisUtterance(textInput.value);
+    utter.voice = voices.find(v => v.name === voiceSelect.value);
+    utter.rate = rate.value;
+    utter.pitch = pitch.value;
+    synth.speak(utter);
+  };
+
+  // Playback controls
+  document.getElementById('pause-btn').onclick = () => synth.pause();
+  document.getElementById('resume-btn').onclick = () => synth.resume();
+  document.getElementById('cancel-btn').onclick = () => synth.cancel();
+
+  // Download button
+  document.getElementById('download-btn').onclick = async () => {
+    const text = textInput.value.trim();
+    const provider = providerSelect.value;
+    const key = apiKeyInput.value.trim();
+    const lang = languageSelect.value;
+
+    if (!text) return alert('Please enter some text.');
+
+    if ((provider === 'voicerss' || provider === 'elevenlabs') && !key) {
+      alert('API key required for selected provider');
+      return;
     }
 
-    function updateVoiceList() {
-      const selectedLang = languageSelect.value;
-      voiceSelect.innerHTML = '';
-      const filtered = voices.filter(v => v.lang === selectedLang);
-      if (filtered.length === 0) {
-        voiceSelect.insertAdjacentHTML('beforeend', `<option disabled>No voices available for this language</option>`);
-        return;
+    if (provider === 'voicerss') {
+      const url = `https://api.voicerss.org/?key=${key}&hl=${lang}`
+                + `&r=${Math.round((rate.value - 1) * 10)}&c=MP3&f=44khz_16bit_stereo`
+                + `&src=${encodeURIComponent(text)}`;
+      downloadFromUrl(url, 'voicerss-tts.mp3');
+      return;
+    }
+
+    if (provider === 'elevenlabs') {
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${KISHAN_VOICE_ID}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'xi-api-key': key
+          },
+          body: JSON.stringify({ text })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        downloadFromUrl(url, 'kishan-tts.mp3');
+      } catch (err) {
+        alert('ElevenLabs Error: ' + err.message);
       }
-      filtered.forEach(v => {
-        voiceSelect.insertAdjacentHTML('beforeend', `<option value="${v.name}">${v.name}</option>`);
-      });
-      const storedVoice = localStorage.getItem('tts-voice');
-      if (storedVoice && [...voiceSelect.options].some(o => o.value === storedVoice)) {
-        voiceSelect.value = storedVoice;
-      }
+      return;
     }
 
-    function loadSettings() {
-      if (localStorage.getItem('tts-theme') === 'dark') {
-        document.body.classList.add('dark-theme');
-        themeCheckbox.checked = true;
-      }
-      rate.value = localStorage.getItem('tts-rate') || 1;
-      pitch.value = localStorage.getItem('tts-pitch') || 1;
-      rateVal.textContent = rate.value;
-      pitchVal.textContent = pitch.value;
-    }
+    alert('Download not supported with Web Speech API. Try VoiceRSS or ElevenLabs.');
+  };
 
-    function saveSetting(key, value) {
-      localStorage.setItem(key, value);
-    }
+  function downloadFromUrl(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
-    languageSelect.onchange = () => {
-      saveSetting('tts-language', languageSelect.value);
-      updateVoiceList();
-    };
-    voiceSelect.onchange = () => saveSetting('tts-voice', voiceSelect.value);
-    rate.oninput = () => {
-      rateVal.textContent = rate.value;
-      saveSetting('tts-rate', rate.value);
-    };
-    pitch.oninput = () => {
-      pitchVal.textContent = pitch.value;
-      saveSetting('tts-pitch', pitch.value);
-    };
-    themeCheckbox.onchange = () => {
-      document.body.classList.toggle('dark-theme');
-      saveSetting('tts-theme', themeCheckbox.checked ? 'dark' : 'light');
-    };
-
-    document.getElementById('speak-btn').onclick = () => {
-      if (synth.speaking) return alert('Already speaking');
-      if (!textInput.value.trim()) return alert('Please enter text to speak.');
-      const utter = new SpeechSynthesisUtterance(textInput.value);
-      utter.voice = voices.find(v => v.name === voiceSelect.value);
-      utter.rate = rate.value;
-      utter.pitch = pitch.value;
-      synth.speak(utter);
-    };
-
-    document.getElementById('pause-btn').onclick = () => synth.pause();
-    document.getElementById('resume-btn').onclick = () => synth.resume();
-    document.getElementById('cancel-btn').onclick = () => synth.cancel();
-
-    document.getElementById('download-btn').onclick = async () => {
-      const text = textInput.value.trim();
-      const provider = providerSelect.value;
-      const key = apiKeyInput.value.trim();
-      if (!text) return alert('Please enter some text.');
-
-      if ((provider === 'voicerss' || provider === 'elevenlabs') && !key) {
-        alert('API key required for selected provider');
-        return;
-      }
-
-      loadingIndicator.style.display = 'block';
-
-      if (provider === 'voicerss') {
-        const url = `https://api.voicerss.org/?key=${key}&hl=${languageSelect.value}`
-                  + `&r=${Math.round((rate.value - 1) * 10)}&c=MP3&f=44khz_16bit_stereo`
-                  + `&src=${encodeURIComponent(text)}`;
-        downloadFromUrl(url, 'voicerss-tts.mp3');
-        loadingIndicator.style.display = 'none';
-        return;
-      }
-
-      if (provider === 'elevenlabs') {
-        try {
-          const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${KISHAN_VOICE_ID}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'xi-api-key': key
-            },
-            body: JSON.stringify({ text })
-          });
-          if (!res.ok) throw new Error(await res.text());
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          downloadFromUrl(url, 'kishan-tts.mp3');
-        } catch (err) {
-          alert('ElevenLabs Error: ' + err.message);
-        } finally {
-          loadingIndicator.style.display = 'none';
-        }
-        return;
-      }
-
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.voice = voices.find(v => v.name === voiceSelect.value);
-      utter.rate = rate.value;
-      utter.pitch = pitch.value;
-      synth.speak(utter);
-      loadingIndicator.style.display = 'none';
-    };
-
-    function downloadFromUrl(url, filename) {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-    }
-
-    loadSettings();
-    populateVoices();
-    if (!synth.onvoiceschanged) setTimeout(populateVoices, 500);
-    else synth.onvoiceschanged = populateVoices;
-  </script>
-</body>
-</html>
+  // Init
+  loadSettings();
+  populateVoices();
+  if (!synth.onvoiceschanged) setTimeout(populateVoices, 500);
+  else synth.onvoiceschanged = populateVoices;
+</script>
